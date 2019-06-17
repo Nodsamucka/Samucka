@@ -1,0 +1,105 @@
+#include "pch.h"
+#include <iostream>
+#include <time.h>	
+#include <chrono>
+#include <omp.h>
+
+using namespace std;
+
+void stoogesort(int arr[], int l, int h) {
+
+	if (l >= h)
+		return;
+
+	if (arr[l] > arr[h])
+		swap(arr[l], arr[h]);
+
+	if (h - l + 1 > 2) {
+
+		int t = (h - l + 1) / 3;
+
+		stoogesort(arr, l, h - t);
+		stoogesort(arr, l + t, h);
+		stoogesort(arr, l, h - t);
+	}
+}
+
+void stoogesortparalelo(int arr[], int l, int h) {
+
+	if (l >= h)
+		return;
+
+	if (arr[l] > arr[h])
+#pragma omp critical
+	{
+		swap(arr[l], arr[h]);
+	}
+
+	if (h - l + 1 > 2) {
+		int t = (h - l + 1) / 3;
+#pragma omp parallel sections
+		{
+#pragma omp section 
+			{
+				stoogesortparalelo(arr, l, h - t);
+			}
+#pragma omp section
+			{
+				stoogesortparalelo(arr, l + t, h);
+			}
+		}
+			stoogesortparalelo(arr, l, h - t);
+	}
+}
+
+int main()
+{
+	float tempoParalelo = 0;
+	float tempoSerial = 0;
+	int repetir = 0;
+	while (repetir < 1000) {
+
+		int vetor[100];
+		int copia[100];
+
+		srand(static_cast<unsigned int>(time(NULL)));
+		for (int x = 0; x < 100; x++) {
+			vetor[x] = rand() % 120 - 20;
+		}
+		for (int x = 0; x < 100; x++) {
+			copia[x] = vetor[x];
+		}
+
+		int n = sizeof(vetor) / sizeof(vetor[0]);
+
+		//printf("Antes: \n");
+		//for (int i = 0; i < n; i++)
+		//	cout << vetor[i] << " ";
+		//printf("\n");
+
+		omp_set_num_threads(8);
+		auto start = chrono::steady_clock::now();
+		stoogesortparalelo(vetor, 0, n - 1);
+		auto finish = chrono::steady_clock::now();
+
+		tempoParalelo = tempoParalelo + chrono::duration_cast<chrono::nanoseconds>(finish - start).count() / 1e6;
+
+		auto start2 = chrono::steady_clock::now();
+		stoogesort(copia, 0, n - 1);
+		auto finish2 = chrono::steady_clock::now();
+
+		tempoSerial = tempoSerial + chrono::duration_cast<chrono::nanoseconds>(finish2 - start2).count() / 1e6;
+
+		repetir++;
+
+		//printf("Depois \n");
+		//for (int i = 0; i < n; i++)
+		//	cout << vetor[i] << " ";
+		//printf("\n");
+	}
+	printf("\n");
+	printf("Tempo Paralelo: %f \n", tempoParalelo/1000);
+	printf("Tempo Serial: %f \n", tempoSerial/1000);
+
+	return 0;
+}
